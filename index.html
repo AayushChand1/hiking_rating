@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trekking Routes Rating App</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; }
+    h1 { text-align: center; margin-bottom: 6px; }
+    .intro { text-align: center; color: #333; margin-bottom: 12px; }
+    #globalName { padding: 10px; width: 100%; max-width: 420px; display: block; margin: 12px auto; border-radius: 6px; border: 1px solid #aaa; }
+    .route-card { background: white; padding: 12px 16px; margin: 10px 0; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.06); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .route-title { font-size: 16px; margin: 0; flex: 1; }
+    .stars span { cursor: pointer; font-size: 20px; user-select: none; margin-right: 4px; }
+    .submit-btn { margin-top: 20px; padding: 10px 20px; border: none; background: #4CAF50; color: white; border-radius: 5px; cursor: pointer; font-size: 16px; display:block; margin-left:auto; margin-right:auto; }
+    .avg { font-weight: 600; color: #333; margin-left: 12px; min-width:110px; text-align:right; }
+    .small-note { text-align: center; color: #666; font-size: 13px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Trekking Routes Rating App</h1>
+  <div class="intro">Select a star rating for any route (1–5). Default is 1 star. Enter your name once below and click <strong>Submit All Ratings</strong>.</div>
+
+  <input id="globalName" type="text" placeholder="Enter your name" />
+  <div id="routes">Loading routes...</div>
+  <button id="submitAll" class="submit-btn">Submit All Ratings</button>
+  <div class="small-note">You can change your selections before submitting.</div>
+
+  <script>
+   // Firebase configuration (replace with your own)
+   const firebaseConfig = {
+     apiKey: "AIzaSyDo-JZn-8Es_Nqa20nn1aOcC3qGfzBVjgw",
+     authDomain: "trekkingratings.firebaseapp.com",
+     databaseURL: "https://trekkingratings.firebaseio.com",
+     projectId: "trekkingratings",
+     storageBucket: "trekkingratings.firebasestorage.app",
+     messagingSenderId: "461046279478",
+     appId: "1:461046279478:web:eb58087d85220c69479797"
+   },
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const routeNamesRaw = [
+"Kathmandu Valley circuit.geojson","Lauke Jharna.geojson","Jhor waterfall.geojson","Tikabhairav-Pharping-Taudaha.geojson","Pharping-Champadevi-Bhasmasur-Chandragiri-Thankot.geojson","Muhanpokhari only.geojson","Tindhare Jharana.geojson","Konjyoson Jharna RoshiJharna.geojson","Budhanilkantha-Gurje-Kakani.geojson","Muhanpokhari Nagarkot loop.geojson","Bagdwar Bishnudwar loop.geojson","Shivapuri Muhanpokhari loop.geojson","Bishankhunaryan Kotdada.geojson","Bhundol.geojson","Bhuwaneswar Paanchmaane Tarkeswar.geojson","Pilot Baba Ghyampe Dada.geojson","Tarebhir.geojson","Fungfung waterfall Nuwakot.geojson","Champadevi trail options.geojson","Phulchoki trail options.geojson","Phulchoki trails from Bhaktapur.geojson","Bhasmasur trail options.geojson","Chandragiri trail.geojson","Jamacho.geojson","Kulekhani circuit Mahabhir Bheda farm.geojson","Bethanchok circuit.geojson","Bhasmaasur range.geojson","Kakani circuit trail.geojson","Gosaainkunda.geojson","GodamToplang Khanikhola.geojson","JhorBIshnudwar.geojson","HumaneBhanjyang to Machhegau.geojson","DhapDam trail options.geojson","Latarambheswar trail.geojson","Tin Chhange Rani jharna.geojson","Lakhinswari waterfall.geojson","Sundarijal Tarebhir Gokarna.geojson","Gadhi Gang View Tower.geojson","Jhyampal fall.geojson","Bishnudwar loop.geojson","Lauke Jharana 2080 updated.geojson","Simba waterfall Asoj 2080.geojson","Nagarkot Dhulikhel Panauti.geojson","Kulekhani 2080 Dashain.geojson","Dhauleswar from Jitpur Phedi.geojson","Namobuddha_Ladkeswar circuit.geojson","Sisneri.geojson","Saga to Jarsingpauwa via Nagarkot.geojson","Thankot-Mudkhu Bhanjyang-Gurje Bhanjyang.geojson","Saangaa to Panauti.geojson"
+];
+
+    const routes = routeNamesRaw.map(r => r.replace(/\.geojson$/i, ''));
+
+    const tempRatings = {};
+
+    function createStarElements(route) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'stars';
+      for (let v = 1; v <= 5; v++) {
+        const span = document.createElement('span');
+        span.textContent = '★';
+        span.dataset.v = v;
+        span.onclick = () => {
+          tempRatings[route] = v;
+          const siblings = wrapper.querySelectorAll('span');
+          siblings.forEach((s,i)=>s.style.color=(i<v)?'gold':'#000');
+        };
+        wrapper.appendChild(span);
+      }
+      tempRatings[route] = 1;
+      wrapper.querySelectorAll('span')[0].style.color='gold';
+      return wrapper;
+    }
+
+    function computeAverage(arr) {
+      if (!arr || arr.length===0) return 0;
+      return arr.reduce((a,b)=>a+b,0)/arr.length;
+    }
+
+    function renderRoutes() {
+      const container = document.getElementById('routes');
+      container.innerHTML = '';
+      if(routes.length === 0){
+        container.textContent = 'No routes available.';
+        return;
+      }
+      routes.forEach(route => {
+        const card = document.createElement('div');
+        card.className='route-card';
+
+        const title = document.createElement('h3');
+        title.className='route-title';
+        title.textContent=route;
+
+        const starsEl = createStarElements(route);
+
+        const avgDiv = document.createElement('div');
+        avgDiv.className='avg';
+        avgDiv.textContent = 'Avg: 0 (0)'; // default
+
+        db.ref('ratings/' + route).once('value').then(snapshot => {
+          const data = snapshot.val() || [];
+          const avg = computeAverage(data);
+          avgDiv.textContent = `Avg: ${avg.toFixed(2)} (${data.length})`;
+        }).catch(err => console.error(err));
+
+        card.appendChild(title);
+        card.appendChild(starsEl);
+        card.appendChild(avgDiv);
+        container.appendChild(card);
+      });
+    }
+
+    renderRoutes();
+
+    document.getElementById('submitAll').onclick=()=>{
+      const user=document.getElementById('globalName').value.trim();
+      if(!user){alert('Please enter your name before submitting.'); return;}
+      let submittedCount=0;
+      Object.keys(tempRatings).forEach(route=>{
+        const v=tempRatings[route];
+        db.ref('ratings/' + route).once('value').then(snapshot=>{
+          const data = snapshot.val() || [];
+          data.push(v);
+          db.ref('ratings/' + route).set(data);
+        });
+        submittedCount++;
+        tempRatings[route]=1;
+      });
+      renderRoutes();
+      alert(`Thanks ${user}! ${submittedCount} rating(s) submitted.`);
+    };
+  </script>
+</body>
+</html>
